@@ -15,7 +15,7 @@
     "grinpp": "./cli.js"
   },
   "dependencies": {
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "cli-table3": "^0.5.1",
     "commander": "^4.1.1",
     "yargs": "^15.1.0"
