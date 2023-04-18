@@ -46,3 +46,4 @@ dist/**
 *.xlf
 package.nls.*.json
 l10n/
+Thumbs.db
