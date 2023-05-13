@@ -48,5 +48,5 @@ def _filter_transactions_by_status(transactions: list, status: str):
         return filter(lambda t: str(t["type"]).lower() == "received", transactions)
     elif status == "canceled":
         return filter(lambda t: "canceled" in str(t["type"]).lower(), transactions)
-    else:
-        return transactions
+
+    return transactions

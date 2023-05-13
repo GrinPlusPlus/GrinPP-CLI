@@ -14,8 +14,8 @@ def _node_rest_call(method: str, params: str = "") -> dict:
 
 
 def _parse_status_response(data: dict) -> tuple[str, float]:
-    percentage: float = 0
     message: str = ""
+    percentage: float = 0.0
 
     if data["sync_status"] == "NOT_CONNECTED":
         message = "Waiting for Peers"

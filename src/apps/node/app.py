@@ -19,7 +19,7 @@ from modules.api.node.rest import (
     get_sync_state,
     shutdown_node,
 )
-from modules.utils.helpers import find_processes_by_name
+from modules.utils import processes
 
 app = typer.Typer()
 
@@ -36,7 +36,7 @@ def stop_node():
     node_process_name: str = "GrinNode"
     if psutil.WINDOWS:
         node_process_name = "GrinNode.exe"
-    if len(find_processes_by_name(node_process_name)) > 0:
+    if len(processes.find(node_process_name)) > 0:
         running = True
 
     if not running:
@@ -54,7 +54,7 @@ def stop_node():
                     break
                 except:
                     pass
-    if len(find_processes_by_name(node_process_name)) == 0:
+    if len(processes.find(node_process_name)) == 0:
         console.print("Node and wallet Tor Listeners successfully [bold]stopped[/bold]")
     else:
         error_console.print("Unable to stop Node.")

@@ -8,12 +8,8 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
-from modules.utils.coingecko import get_grin_price, is_currency_supported
-from modules.utils.helpers import (
-    check_wallet_reachability,
-    find_processes_by_name,
-    kill_proc_tree,
-)
+from modules.utils import grinchck, processes
+from modules.utils.coingecko import get_grin_price
 
 app = typer.Typer()
 
@@ -30,12 +26,12 @@ def simple_grin_price(
     """
     Get Grin price from CoinGecko.
     """
-    if not is_currency_supported(currency):
-        error_console.print(f"Currency not supported.")
-        typer.Abort()
-
-    moon = get_grin_price(currency)
-    table: Table = Table(box=box.HORIZONTALS, show_header=False)
+    try:
+        moon = get_grin_price(currency)
+    except Exception as err:
+        error_console.print(f"Error: {err}")
+        raise typer.Abort()
+    table = Table(box=box.HORIZONTALS, show_header=False)
     direction: str = ""
     style: str = ""
     if moon["24h_change"] >= 0:
@@ -68,7 +64,9 @@ def grinchck_test(
     reachable: bool = False
     try:
         with console.status("Checking wallet reachability..."):
-            reachable = check_wallet_reachability(address)
+            reachable = grinchck.connect(
+                slatepack_address=address, api_url="http://192.227.214.130/"
+            )
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()
@@ -101,7 +99,7 @@ def tor_control(
     tor_process_name: str = "tor"
     if psutil.WINDOWS:
         tor_process_name = "tor.exe"
-    tor_processes: list[psutil.Process] = find_processes_by_name(tor_process_name)
+    tor_processes: list[psutil.Process] = processes.find(tor_process_name)
 
     if len(tor_processes) > 0:
         running = True
@@ -115,8 +113,8 @@ def tor_control(
         if stop:
             with console.status("Stopping tor..."):
                 for process in tor_processes:
-                    kill_proc_tree(process.pid)
-            if len(find_processes_by_name(tor_process_name)) > 0:
+                    processes.kill(process.pid)
+            if len(processes.find(tor_process_name)) > 0:
                 error_console.print("Tor is still running")
             else:
                 console.print("Tor [bold]stopped[/bold] successfully ✔")

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-import json
+import os
+import pathlib
 
 import typer
 from rich import box
@@ -8,6 +9,7 @@ from rich.console import Console
 from rich.prompt import Confirm
 from rich.table import Table
 
+from modules import nostr
 from modules.api.owner.rpc import (
     close_wallet_by_name,
     create_wallet,
@@ -19,12 +21,8 @@ from modules.api.owner.rpc import (
     open_wallet_by_name,
     restore_wallet,
 )
-from modules.utils.helpers import (
-    get_wallet_nostr_public_key,
-    get_wallet_session,
-    save_wallet_nostr_key,
-    save_wallet_session,
-)
+from modules.utils import grinchck
+from modules.wallet import session
 
 app = typer.Typer()
 console = Console(width=125, style="grey93")
@@ -48,33 +46,16 @@ def wallet_open(
     """
 
     try:
-        result = open_wallet_by_name(wallet, password)
+        response = open_wallet_by_name(wallet, password)
         console.print(f"Wallet [bold]{wallet}[/bold] opened ✔")
-        console.print(f"Tor Listener for wallet [bold]{wallet}[/bold] running ✔")
-        session_saved = save_wallet_session(
+
+        if not session.store(
             wallet=wallet,
-            session_token=result["session_token"],
+            token=response["session_token"],
             password=password,
-        )
-        if not session_saved:
-            error_console.print(f"Error: Unable to save session information ✗")
-        else:
-            console.print(f"Session information created ✔")
-
-        nostr_key_saved = save_wallet_nostr_key(
-            wallet=wallet,
-            slatepack_address=result["slatepack_address"],
-            password=password,
-        )
-
-        if not nostr_key_saved:
-            error_console.print(f"Error: Unable to generate Nostr key ✗")
-        else:
-            console.print(f"Nostr root key loaded ✔")
-
-        console.print(
-            f"Slatepack Address: [green3]{result['slatepack_address']}[/green3] "
-        )
+        ):
+            close_wallet_by_name(response["session_token"])
+            raise Exception("Unable to save session information ✗")
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()
@@ -99,12 +80,10 @@ def wallet_close(
     """
 
     try:
-        session_token: str = get_wallet_session(wallet=wallet, password=password)
+        session_token: str = session.token(wallet=wallet, password=password)
         with console.status("closing walet..."):
             close_wallet_by_name(session_token)
-        console.print(
-            f"Wallet [bold]{wallet}[/bold] closed, and Tor Listener [bold]stopped[/bold] successfully ✔"
-        )
+        console.print(f"Wallet [bold]{wallet}[/bold] closed successfully ✔")
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()
@@ -131,34 +110,18 @@ def wallet_creation(
     """
 
     try:
-        wallet = create_wallet(wallet=name, password=password, words=words)
-        console.print(f"Wallet [bold]{wallet}[/bold] created ✔")
+        response = create_wallet(wallet=name, password=password, words=words)
+        console.print(f"Wallet [bold]{name}[/bold] created ✔")
+        console.print(f"Wallet seed phrase: [bold]{response['wallet_seed']}[/bold] ✇")
 
-        session_saved = save_wallet_session(
+        if not session.store(
             wallet=name,
-            session_token=wallet["session_token"],
+            token=response["session_token"],
             password=password,
-        )
-        console.print(f"Tor Listener for wallet [bold]{wallet}[/bold] running ✔")
+        ):
+            close_wallet_by_name(response["session_token"])
+            raise Exception("Unable to save session information ✗")
 
-        if not session_saved:
-            raise Exception("An error occurred while saving session information")
-
-        nostr_key_saved = save_wallet_nostr_key(
-            wallet=name,
-            slatepack_address=wallet["slatepack_address"],
-            password=password,
-        )
-
-        if not nostr_key_saved:
-            error_console.print(f"Error: {err} ✗")
-        else:
-            console.print(f"Nostr root key loaded ✔")
-
-        console.print(f"Wallet seed phrase: [bold]{wallet['wallet_seed']}[/bold] ✇")
-        console.print(
-            f"Slatepack Address: [green3]{wallet['slatepack_address']}[/green3] "
-        )
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()
@@ -185,32 +148,17 @@ def wallet_restore(
     """
 
     try:
-        wallet = restore_wallet(wallet=name, password=password, seed=seed)
-        console.print(f"Wallet [bold]{wallet}[/bold] recovered ✔")
-        session_saved = save_wallet_session(
+        response = restore_wallet(wallet=name, password=password, seed=seed)
+        console.print(f"Wallet [bold]{name}[/bold] recovered ✔")
+
+        if not session.store(
             wallet=name,
-            session_token=wallet["session_token"],
+            token=response["session_token"],
             password=password,
-        )
-        if not session_saved:
-            error_console.print(f"Error: {err} ✗")
-        else:
-            console.print(f"Session information created ✔")
+        ):
+            raise Exception("Unable to save session information ✗")
 
-        nostr_key_saved = save_wallet_nostr_key(
-            wallet=name,
-            slatepack_address=wallet["slatepack_address"],
-            password=password,
-        )
-
-        if not nostr_key_saved:
-            error_console.print(f"Error: {err} ✗")
-        else:
-            console.print(f"Nostr root key loaded ✔")
-
-        console.print(
-            f"Slatepack Address: [green3]{wallet['slatepack_address']}[/green3] "
-        )
+        console.print(f"Session information created ✔")
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()
@@ -261,7 +209,7 @@ def wallet_backup(
 
     try:
         seed = get_wallet_seed(wallet=wallet, password=password)
-        console.print(f"wallet seed: [bold white]{seed}[/bold white]")
+        console.print(f"Wallet seed phrase: [bold white]{seed}[/bold white]")
 
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
@@ -275,29 +223,27 @@ def list_wallets():
     """
     List the created Wallets.
     """
-    data = json.loads("{}")
 
     try:
         data = get_list_of_wallets()
+        if "wallets" in data and data["wallets"]:
+            table = Table(title="Wallets", box=box.HORIZONTALS, expand=True)
+            table.add_column("")
+            table.add_column("name")
+            i = 1
+            for wallet in data["wallets"]:
+                table.add_row(
+                    f"{i}",
+                    f"[bold yellow]{wallet}",
+                )
+                i += 1
+
+            console.print(table)
+        else:
+            console.print("No wallet found")
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()
-
-    if data["wallets"]:
-        table = Table(title="Wallets", box=box.HORIZONTALS, expand=True)
-        table.add_column("")
-        table.add_column("name")
-        i = 1
-        for wallet in data["wallets"]:
-            table.add_row(
-                f"{i}",
-                f"[bold yellow]{wallet}",
-            )
-            i += 1
-
-        console.print(table)
-    else:
-        console.print("No wallet found")
 
     raise typer.Exit()
 
@@ -319,7 +265,7 @@ def wallet_balance(
     """
 
     try:
-        session_token = get_wallet_session(wallet=wallet, password=password)
+        session_token = session.token(wallet=wallet, password=password)
 
         balance = get_wallet_balance(session_token)
 
@@ -369,35 +315,42 @@ def wallet_address(
         hide_input=True,
         help="Wallet password.",
     ),
-    nostr: bool = typer.Option(
-        False, help="Return the nostr Public Key associated with the current address"
+    test: bool = typer.Option(
+        False, help="Check if wallet address is reachable via Tor"
     ),
-    check: bool = typer.Option(False, help="Check if address are reachable via Tor"),
+    npub: bool = typer.Option(False, help="Print the Nostr Public Key"),
 ):
     """
     Get the Slatepack Address of a running Wallet.
     """
 
     try:
-        session_token = get_wallet_session(wallet=wallet, password=password)
+        session_token = session.token(wallet=wallet, password=password)
+        address = get_wallet_slatepack_address(session_token)
+        console.print(f"Slatepack Address: [green3]{address}[/green3]")
 
-        slatepack_address = get_wallet_slatepack_address(session_token)
-
-        console.print(f"Slatepack Address: [green3]{slatepack_address}[/green3] ")
-
-        if nostr:
-            nostr_public_key = get_wallet_nostr_public_key(
-                wallet=wallet,
-                slatepack_address=slatepack_address,
-                password=password,
+        if test:
+            reachable = grinchck.connect(
+                slatepack_address=address, api_url="http://192.227.214.130/"
             )
-            if nostr_public_key:
+            if reachable:
                 console.print(
-                    f"Nostr' Public Key: [dark_orange3]{nostr_public_key}[/dark_orange3] (∩｀-´)⊃━☆ﾟ.*･｡ﾟ"
+                    f"Address [green3]{address}[/green3] is reachable via the Tor Network <(^_^)>"
                 )
             else:
-                error_console.print("No nostr key was found for this address")
-
+                error_console.print(
+                    f"Addres [dark_orange]{address}[/dark_orange] is not reachable the Tor Network \_(-_-)_/"
+                )
+        if npub:
+            wallet_raw_secret = nostr.generate_raw_secret(
+                wallet=wallet, address=address, password=password
+            )
+            nostr_private_key = nostr.retrieve_private_key(
+                wallet=wallet, raw_secret=wallet_raw_secret
+            )
+            console.print(
+                f"Nostr' Public Key: [dark_orange3]{nostr_private_key.public_key}[/dark_orange3] (∩｀-´)⊃━☆ﾟ.*･｡ﾟ"
+            )
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()

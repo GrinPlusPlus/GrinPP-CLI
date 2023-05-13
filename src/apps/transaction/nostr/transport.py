@@ -7,7 +7,6 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-import psutil
 import tornado.ioloop
 import typer
 from pynostr.base_relay import RelayPolicy
@@ -26,6 +25,7 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from tornado import gen
 
+from modules import nostr
 from modules.api import TransactionsFilterOptions
 from modules.api.owner.rpc import (
     add_initial_signature,
@@ -38,15 +38,7 @@ from modules.api.owner.rpc import (
     get_wallet_transactions,
     send_coins,
 )
-from modules.utils.coingecko import get_grin_price, is_currency_supported
-from modules.utils.helpers import (
-    check_wallet_reachability,
-    find_processes_by_name,
-    get_nostr_private_key,
-    get_wallet_nostr_public_key,
-    get_wallet_session,
-    kill_proc_tree,
-)
+from modules.wallet import session
 
 plugin = typer.Typer()
 
@@ -96,7 +88,7 @@ def send_tx_to_nostr(
     )
 
     try:
-        session_token = get_wallet_session(wallet=wallet, password=password)
+        session_token = session.token(wallet=wallet, password=password)
         transaction = get_transaction_details(session_token=session_token, id=id)
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
@@ -104,9 +96,13 @@ def send_tx_to_nostr(
 
     console.print(f"Transaction with [bold]id={id}[/bold] found ✔")
 
-    slatepack_address = get_wallet_slatepack_address(session_token)
-    nostr_private_key, raw_key = get_nostr_private_key(
-        slatepack_address=slatepack_address, password=password
+    address = get_wallet_slatepack_address(session_token)
+
+    wallet_raw_secret = nostr.generate_raw_secret(
+        wallet=wallet, address=address, password=password
+    )
+    nostr_private_key = nostr.retrieve_private_key(
+        wallet=wallet, raw_secret=wallet_raw_secret
     )
 
     console.print(f"Sender [bold]Nostr key[/bold] loaded ✔")
@@ -217,10 +213,13 @@ def grab_txs_from_nostr(
     nostr_private_key: PrivateKey = None
 
     try:
-        session_token = get_wallet_session(wallet=wallet, password=password)
-        slatepack_address = get_wallet_slatepack_address(session_token)
-        nostr_private_key, raw_key = get_nostr_private_key(
-            slatepack_address=slatepack_address, password=password
+        session_token = session.token(wallet=wallet, password=password)
+        address = get_wallet_slatepack_address(session_token)
+        wallet_raw_secret = nostr.generate_raw_secret(
+            wallet=wallet, address=address, password=password
+        )
+        nostr_private_key = nostr.retrieve_private_key(
+            wallet=wallet, raw_secret=wallet_raw_secret
         )
 
         if not nostr_private_key:
@@ -308,7 +307,7 @@ def grab_txs_from_nostr(
             url=relay_url,
             close_on_eose=True,
             message_callback=check_reply,
-            policy=RelayPolicy(should_read=False, should_write=False)
+            policy=RelayPolicy(should_read=False, should_write=False),
         )
 
         subscription_id = uuid.uuid4().hex
@@ -361,7 +360,7 @@ def grab_txs_from_nostr(
                 relay_manager.publish_event(reply)
                 with console.status("Sending response..."):
                     relay_manager.run_sync()
-                
+
         relay_manager.close_subscription_on_all_relays(subscription_id)
         relay_manager.close_all_relay_connections()
         relay_manager.remove_closed_relays()

@@ -23,7 +23,7 @@ from modules.api.owner.rpc import (
     get_wallet_transactions,
     send_coins,
 )
-from modules.utils.helpers import get_wallet_session
+from modules.wallet import session
 
 app = typer.Typer()
 
@@ -57,7 +57,7 @@ def list_wallet_transactions(
     """
 
     try:
-        session_token = get_wallet_session(wallet=wallet, password=password)
+        session_token = session.token(wallet=wallet, password=password)
 
         transactions = get_wallet_transactions(session_token, status.value)
     except Exception as err:
@@ -166,7 +166,7 @@ def send_grin(
     fee: float
 
     try:
-        session_token = get_wallet_session(wallet=wallet, password=password)
+        session_token = session.token(wallet=wallet, password=password)
         fee = float(
             estimate_transaction_fee(session_token=session_token, amount=amount)["fee"]
         ) / pow(10, 9)
@@ -198,7 +198,7 @@ def send_grin(
         sent: bool = False
         slatepack: str = ""
         try:
-            session_token = get_wallet_session(wallet=wallet, password=password)
+            session_token = session.token(wallet=wallet, password=password)
             with console.status("Building transaction..."):
                 transaction = send_coins(
                     session_token=session_token, amount=amount, address=address
@@ -250,7 +250,7 @@ def transaction_cancelation(
     """
 
     try:
-        session_token = get_wallet_session(wallet=wallet, password=password)
+        session_token = session.token(wallet=wallet, password=password)
 
         if cancel_transaction(session_token=session_token, id=id):
             console.print("Transaction [bold]canceled[/bold] successfully ✔")
@@ -280,7 +280,7 @@ def transaction_finalization(
     """
 
     try:
-        token = get_wallet_session(wallet=wallet, password=password)
+        token = session.token(wallet=wallet, password=password)
         if not psutil.WINDOWS:
             import readline
         slatepack: str = console.input("Please, insert the Slatepack down below:\n")
@@ -311,7 +311,7 @@ def transaction_receive(
     """
 
     try:
-        session_token = get_wallet_session(wallet=wallet, password=password)
+        session_token = session.token(wallet=wallet, password=password)
         if not psutil.WINDOWS:
             import readline
         slatepack = console.input("Paste the Slatepack down below:\n")
@@ -360,7 +360,7 @@ def transaction_reposting(
     """
 
     try:
-        session_token = get_wallet_session(wallet=wallet, password=password)
+        session_token = session.token(wallet=wallet, password=password)
         if broadcast_transaction(session_token=session_token, id=id):
             console.print("Transaction [bold]posted[/bold] successfully ✔")
         else:
@@ -395,7 +395,7 @@ def transaction_information(
     details: dict = {}
 
     try:
-        session_token = get_wallet_session(wallet=wallet, password=password)
+        session_token = session.token(wallet=wallet, password=password)
         details = get_transaction_details(session_token=session_token, id=id)
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")

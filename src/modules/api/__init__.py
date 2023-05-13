@@ -2,7 +2,7 @@ from enum import Enum
 
 import psutil
 
-from modules.utils.helpers import find_processes_by_name
+from modules.utils.processes import find
 
 
 class TransactionsFilterOptions(str, Enum):
@@ -25,4 +25,4 @@ def _is_node_running() -> bool:
     if psutil.WINDOWS:
         node_process_name = "GrinNode.exe"
 
-    return len(find_processes_by_name(node_process_name)) > 0
+    return len(find(node_process_name)) > 0
