@@ -13,6 +13,57 @@ def _node_rest_call(method: str, params: str = "") -> dict:
         raise Exception(_get_process_status_error())
 
 
+"""
+{
+  "chain": {
+    "hash": "000181a8336f6ae49ba314083c3e5a817a335616e0e0ad204db28733fd825b52",
+    "height": 2266638,
+    "previous_hash": "000371e99eb51d745c38925960c304a5c681f9cefc19c941fa72befd6d567a36",
+    "total_difficulty": 2064958700115730
+  },
+  "header_height": 2268377,
+  "network": {
+    "height": 2268379,
+    "num_inbound": 0,
+    "num_outbound": 5,
+    "total_difficulty": 2065383457733505
+  },
+  "protocol_version": 1000,
+  "state": {
+    "download_size": 0,
+    "downloaded": 0,
+    "processing_status": 0
+  },
+  "sync_status": "SYNCING_BLOCKS",
+  "user_agent": "Grin++ 1.2.8"
+}
+
+{
+  "chain": {
+    "hash": "000226d54b1db6763bb26744cbfb4aa172d66c2697a57dcff04f5662001b4697",
+    "height": 2268385,
+    "previous_hash": "0002dce631821930aa8c051042b0919f281279d86ae846df1d1a7d58ed95dd4e",
+    "total_difficulty": 2065384900184026
+  },
+  "header_height": 2268385,
+  "network": {
+    "height": 2268385,
+    "num_inbound": 0,
+    "num_outbound": 7,
+    "total_difficulty": 2065384900184026
+  },
+  "protocol_version": 1000,
+  "state": {
+    "download_size": 0,
+    "downloaded": 0,
+    "processing_status": 0
+  },
+  "sync_status": "FULLY_SYNCED",
+  "user_agent": "Grin++ 1.2.8"
+}
+"""
+
+
 def _parse_status_response(data: dict) -> tuple[str, float]:
     message: str = ""
     percentage: float = 0.0

@@ -43,7 +43,7 @@ from modules.wallet import session
 plugin = typer.Typer()
 
 console = Console(width=125, style="grey93")
-error_console = Console(stderr=True, style="bright_red")
+error_console = Console(stderr=True, style="bright_red", width=125)
 
 
 @plugin.command(name="send")

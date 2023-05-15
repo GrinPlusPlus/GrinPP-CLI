@@ -26,7 +26,7 @@ from modules.wallet import session
 
 app = typer.Typer()
 console = Console(width=125, style="grey93")
-error_console = Console(stderr=True, style="bright_red")
+error_console = Console(stderr=True, style="bright_red", width=125)
 
 
 @app.command(name="open")

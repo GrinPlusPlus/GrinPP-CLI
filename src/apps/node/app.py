@@ -11,6 +11,7 @@ from rich import box
 from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
+from requests import exceptions
 
 from modules.api.foreign.rpc import get_list_of_settings
 from modules.api.node.rest import (
@@ -19,12 +20,13 @@ from modules.api.node.rest import (
     get_sync_state,
     shutdown_node,
 )
+from modules.api.owner.v2 import node
 from modules.utils import processes
 
 app = typer.Typer()
 
 console = Console(width=125, style="grey93")
-error_console = Console(stderr=True, style="bright_red")
+error_console = Console(stderr=True, style="bright_red", width=125)
 
 
 @app.command(name="stop")
@@ -98,8 +100,8 @@ def start_node():
     raise typer.Exit()
 
 
-@app.command(name="resync")
-def resync_node():
+@app.command(name="clean")
+def clean():
     """
     Delete the local chain data and let the node sync again from scratch.
     """
@@ -117,38 +119,34 @@ def resync_node():
 @app.command(name="status")
 def get_node_status():
     """
-    Get the status of the running node.
+    Get the current status of the running node.
     """
 
-    percentage: float
-    message: str
+    connerr: exceptions.ConnectionError
+    error = ""
 
-    error: Exception
-
-    try:
-        message, percentage = get_sync_state()
-    except Exception as err:
-        error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
-        raise typer.Abort()
+    message = "Getting Node Status..."
+    percentage = 0.0
 
     console.print("Ctrl+C to quit...\n", style="grey42 italic", justify="right")
-
-    with Progress() as progress:
+    with Progress(console=console) as progress:
         task = progress.add_task(
             f"[bold white]{message}", total=100, completed=int(percentage)
         )
-
         while True:
             progress.update(
                 task, description=f"[bold white]{message}", completed=percentage
             )
             time.sleep(1)
             try:
-                message, percentage = get_sync_state()
-            except Exception as err:
-                error = err
+                node_status = node.get_status()
+                message, percentage = node.parse_node_status(node_status)
+            except exceptions.ConnectionError as err:
+                error = "Unable to communicate with the API"
                 break
-
+            except Exception as e:
+                error = str(e)
+                break
     if error:
         error_console.print(error)
         raise typer.Abort()
@@ -233,13 +231,13 @@ def get_node_settings():
 
 
 @app.command(name="peers")
-def get_connected_peers():
+def list_connected_peers():
     """
-    List the peers connected to the running node.
+    List the inbound and outbound peers connected to the running node.
     """
 
     try:
-        data = get_node_connected_peers()
+        data = node.get_connected_peers()
 
         table = Table(box=box.HORIZONTALS, expand=True)
         table.add_column("", justify="center", width=5)

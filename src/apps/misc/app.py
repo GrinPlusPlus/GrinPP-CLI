@@ -14,7 +14,7 @@ from modules.utils.coingecko import get_grin_price
 app = typer.Typer()
 
 console = Console(width=125, style="grey93")
-error_console = Console(stderr=True, style="bright_red")
+error_console = Console(stderr=True, style="bright_red", width=125)
 
 
 @app.command(name="wenmoon")

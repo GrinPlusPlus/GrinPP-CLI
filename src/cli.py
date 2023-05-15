@@ -62,7 +62,7 @@ cli = typer.Typer(
 )
 state = {"verbose": False, "json": False}
 console = Console(width=125, style="grey93")
-error_console = Console(stderr=True, style="bright_red")
+error_console = Console(stderr=True, style="bright_red", width=125)
 
 cli.add_typer(
     misc_app.app,
