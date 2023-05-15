@@ -23,6 +23,7 @@ from modules.api.owner.rpc import (
 )
 from modules.utils import grinchck
 from modules.wallet import session
+from modules.api.owner.v3 import wallet
 
 app = typer.Typer()
 console = Console(width=125, style="grey93")
@@ -110,7 +111,9 @@ def wallet_creation(
     """
 
     try:
-        response = create_wallet(wallet=name, password=password, words=words)
+        response = wallet.create_wallet(
+            name=name, password=password, mnemonic_length=words
+        )
         console.print(f"Wallet [bold]{name}[/bold] created ✔")
         console.print(f"Wallet seed phrase: [bold]{response['wallet_seed']}[/bold] ✇")
 
