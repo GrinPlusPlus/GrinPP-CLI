@@ -1,5 +1,5 @@
 from uuid import uuid4
-
+from rich import print
 import requests
 
 
@@ -13,8 +13,7 @@ def call_owner_rpc_v3(method: str, params: dict = {}) -> dict:
         "params": params,
     }
 
-    response = requests.post(url=url, json=params)
-    data = response.json()
-    if "error" in data:
-        raise Exception(data["error"]["message"])
-    return data["result"]["Ok"]
+    response = requests.post(url=url, json=params).json()
+    if "error" in response:
+        raise Exception(response["error"]["message"])
+    return response["result"]["Ok"]

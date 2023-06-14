@@ -47,7 +47,10 @@ def main(
     """
     Grin++: Fast, Private and Secure Grin Wallet.
 
-    Grin is a lightweight implementation of the Mimblewimble protocol. The main goals and features of the Grin project are: Privacy, Scalability, Simplicity, Simple Cryptography and Decentralization. Grin wants to be usable by everyone, regardless of borders, culture, capabilities or access. To learn more about Grin, visit GRIN.MW.
+    Grin is a lightweight implementation of the Mimblewimble protocol. The main goals and features
+    of the Grin project are: Privacy, Scalability, Simplicity, Simple Cryptography and
+    Decentralization. Grin wants to be usable by everyone, regardless of borders, culture,
+    capabilities or access. To learn more about Grin, visit GRIN.MW.
     """
     if debug:
         state["verbose"] = True

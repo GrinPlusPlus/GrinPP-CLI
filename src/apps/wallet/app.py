@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-import os
-import pathlib
-
 import typer
 from rich import box
 from rich.console import Console
@@ -10,20 +7,20 @@ from rich.prompt import Confirm
 from rich.table import Table
 
 from modules import nostr
-from modules.api.owner.rpc import (
-    close_wallet_by_name,
-    create_wallet,
-    delete_wallet_by_name,
-    get_list_of_wallets,
-    get_wallet_balance,
-    get_wallet_seed,
-    get_wallet_slatepack_address,
-    open_wallet_by_name,
-    restore_wallet,
-)
+
 from modules.utils import grinchck
 from modules.wallet import session
-from modules.api.owner.v3 import wallet
+from modules.api.owner.v3.wallet import (
+    delete_wallet,
+    get_mnemonic,
+    list_wallets,
+    open_wallet,
+    close_wallet,
+    create_wallet,
+    restore_wallet,
+    retrieve_summary_info,
+    get_slatepack_address,
+)
 
 app = typer.Typer()
 console = Console(width=125, style="grey93")
@@ -31,7 +28,7 @@ error_console = Console(stderr=True, style="bright_red", width=125)
 
 
 @app.command(name="open")
-def wallet_open(
+def open(
     wallet: str = typer.Option(
         ..., help="Name of the wallet you want to open", prompt=True
     ),
@@ -47,7 +44,7 @@ def wallet_open(
     """
 
     try:
-        response = open_wallet_by_name(wallet, password)
+        response = open_wallet(wallet=wallet, password=password)
         console.print(f"Wallet [bold]{wallet}[/bold] opened ✔")
 
         if not session.store(
@@ -55,7 +52,7 @@ def wallet_open(
             token=response["session_token"],
             password=password,
         ):
-            close_wallet_by_name(response["session_token"])
+            close_wallet(response["session_token"])
             raise Exception("Unable to save session information ✗")
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
@@ -65,7 +62,7 @@ def wallet_open(
 
 
 @app.command(name="close")
-def wallet_close(
+def close(
     wallet: str = typer.Option(
         ..., help="Name of the wallet you want to close", prompt=True
     ),
@@ -83,7 +80,7 @@ def wallet_close(
     try:
         session_token: str = session.token(wallet=wallet, password=password)
         with console.status("closing walet..."):
-            close_wallet_by_name(session_token)
+            close_wallet(session_token)
         console.print(f"Wallet [bold]{wallet}[/bold] closed successfully ✔")
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
@@ -93,7 +90,7 @@ def wallet_close(
 
 
 @app.command(name="create")
-def wallet_creation(
+def create(
     name: str = typer.Option(
         ..., help="Name of the wallet you want to create", prompt=True
     ),
@@ -111,9 +108,7 @@ def wallet_creation(
     """
 
     try:
-        response = wallet.create_wallet(
-            name=name, password=password, mnemonic_length=words
-        )
+        response = create_wallet(wallet=name, password=password, mnemonic_length=words)
         console.print(f"Wallet [bold]{name}[/bold] created ✔")
         console.print(f"Wallet seed phrase: [bold]{response['wallet_seed']}[/bold] ✇")
 
@@ -122,7 +117,7 @@ def wallet_creation(
             token=response["session_token"],
             password=password,
         ):
-            close_wallet_by_name(response["session_token"])
+            close_wallet(response["session_token"])
             raise Exception("Unable to save session information ✗")
 
     except Exception as err:
@@ -133,7 +128,7 @@ def wallet_creation(
 
 
 @app.command(name="recover")
-def wallet_restore(
+def recover(
     name: str = typer.Option(
         ..., help="Name for the wallet you want to recover", prompt=True
     ),
@@ -151,7 +146,7 @@ def wallet_restore(
     """
 
     try:
-        response = restore_wallet(wallet=name, password=password, seed=seed)
+        response = restore_wallet(wallet=name, password=password, mnemonic=seed)
         console.print(f"Wallet [bold]{name}[/bold] recovered ✔")
 
         if not session.store(
@@ -170,7 +165,7 @@ def wallet_restore(
 
 
 @app.command(name="delete")
-def wallet_removal(
+def delete(
     name: str = typer.Option(
         ..., help="Name of the wallet you want to delete", prompt=True
     ),
@@ -184,12 +179,12 @@ def wallet_removal(
 
     if Confirm.ask("Are you sure you want to delete the wallet?", default=False):
         try:
-            seed = get_wallet_seed(wallet=name, password=password)
+            seed = get_mnemonic(wallet=name, password=password)
             console.print(
                 f"Wallet seed phrase: [bold italic]{seed}[/bold italic]", style=""
             )
 
-            delete_wallet_by_name(wallet=name, password=password)
+            delete_wallet(wallet=name, password=password)
 
             console.print(f"Wallet [bold]{name}[/bold] deleted")
         except Exception as err:
@@ -200,7 +195,7 @@ def wallet_removal(
 
 
 @app.command(name="backup")
-def wallet_backup(
+def backup(
     wallet: str = typer.Option(..., help="Name of the wallet you want to backup."),
     password: str = typer.Option(
         ..., prompt=True, hide_input=True, help="Wallet password."
@@ -211,7 +206,7 @@ def wallet_backup(
     """
 
     try:
-        seed = get_wallet_seed(wallet=wallet, password=password)
+        seed = get_mnemonic(wallet=wallet, password=password)
         console.print(f"Wallet seed phrase: [bold white]{seed}[/bold white]")
 
     except Exception as err:
@@ -222,19 +217,19 @@ def wallet_backup(
 
 
 @app.command(name="list")
-def list_wallets():
+def wallet_list():
     """
     List the created Wallets.
     """
 
     try:
-        data = get_list_of_wallets()
-        if "wallets" in data and data["wallets"]:
+        wallets = list_wallets()
+        if wallets:
             table = Table(title="Wallets", box=box.HORIZONTALS, expand=True)
             table.add_column("")
             table.add_column("name")
             i = 1
-            for wallet in data["wallets"]:
+            for wallet in wallets:
                 table.add_row(
                     f"{i}",
                     f"[bold yellow]{wallet}",
@@ -252,7 +247,7 @@ def list_wallets():
 
 
 @app.command(name="balance")
-def wallet_balance(
+def get_balance(
     wallet: str = typer.Option(
         ..., help="Name of the wallet you want to check", prompt="Wallet name"
     ),
@@ -268,9 +263,9 @@ def wallet_balance(
     """
 
     try:
-        session_token = session.token(wallet=wallet, password=password)
+        token = session.token(wallet=wallet, password=password)
 
-        balance = get_wallet_balance(session_token)
+        balance = retrieve_summary_info(token)
 
         table = Table(
             title="Wallet's Balance",
@@ -329,12 +324,13 @@ def wallet_address(
 
     try:
         session_token = session.token(wallet=wallet, password=password)
-        address = get_wallet_slatepack_address(session_token)
+        address = get_slatepack_address(session_token)
         console.print(f"Slatepack Address: [green3]{address}[/green3]")
 
         if test:
             reachable = grinchck.connect(
-                slatepack_address=address, api_url="http://192.227.214.130/"
+                slatepack_address=address["slatepack"],
+                api_url="http://192.227.214.130/",
             )
             if reachable:
                 console.print(
@@ -346,7 +342,7 @@ def wallet_address(
                 )
         if npub:
             wallet_raw_secret = nostr.generate_raw_secret(
-                wallet=wallet, address=address, password=password
+                wallet=wallet, address=address["slatepack"], password=password
             )
             nostr_private_key = nostr.retrieve_private_key(
                 wallet=wallet, raw_secret=wallet_raw_secret

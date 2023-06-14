@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Optional
+from pathlib import Path
 
 import psutil
 import timeago
@@ -23,6 +24,7 @@ from modules.api.owner.rpc import (
     get_wallet_transactions,
     send_coins,
 )
+from modules.api.owner.v3.wallet import get_stored_tx, get_tx_details, retrieve_txs
 from modules.wallet import session
 
 app = typer.Typer()
@@ -33,8 +35,8 @@ app.add_typer(
     no_args_is_help=True,
     help="Nostr Transport Plugin for Grin transactions.",
 )
-console = Console(width=125, style="grey93")
-error_console = Console(stderr=True, style="bright_red", width=125)
+console = Console(width=155, style="grey93")
+error_console = Console(stderr=True, style="bright_red", width=155)
 
 
 @app.command(name="list")
@@ -59,7 +61,7 @@ def list_wallet_transactions(
     try:
         session_token = session.token(wallet=wallet, password=password)
 
-        transactions = get_wallet_transactions(session_token, status.value)
+        transactions = retrieve_txs(session_token, status.value)
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()
@@ -69,7 +71,8 @@ def list_wallet_transactions(
         raise typer.Exit()
 
     table = Table(title="", box=box.HORIZONTALS, expand=True)
-    table.add_column("id", justify="center", width=5)
+    table.add_column("tx_id", justify="center", width=5)
+    table.add_column("slate_id", justify="center", width=40)
     table.add_column("amount ツ", justify="right", width=15)
     table.add_column("fees ツ", justify="right", width=15)
     table.add_column("when?", justify="center", width=15)
@@ -125,6 +128,7 @@ def list_wallet_transactions(
 
         table.add_row(
             f"{transaction['id']}",
+            f"{transaction['slate_id']}",
             f"{amount:10,.9f}",
             f"{fee:10,.9f}" if fee > 0 else "-",
             f"{relative_date}",
@@ -374,7 +378,7 @@ def transaction_reposting(
 
 
 @app.command(name="details")
-def transaction_information(
+def details(
     wallet: str = typer.Option(
         ..., help="Name of the wallet you want query", prompt="Wallet name"
     ),
@@ -387,6 +391,7 @@ def transaction_information(
         prompt="Transaction Id",
     ),
     slatepack: bool = typer.Option(False, help="Return only the Slatepack"),
+    slate: bool = typer.Option(False, help="Export transaction Slate"),
 ):
     """
     Get the information of a transaction using the Transaction Id.
@@ -396,7 +401,7 @@ def transaction_information(
 
     try:
         session_token = session.token(wallet=wallet, password=password)
-        details = get_transaction_details(session_token=session_token, id=id)
+        details = get_tx_details(session_token=session_token, tx_id=id)
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()
@@ -425,6 +430,8 @@ def transaction_information(
     table = Table(box=box.HORIZONTALS, expand=True, show_header=False)
     table.add_column("", justify="right", style="bold")
     table.add_column("", justify="left")
+    table.add_row("tx_id:", f"{details['id']}")
+    table.add_row("slate_id:", f"{details['slate_id']}")
     table.add_row("amount:", f"{amount:10,.9f} ツ")
     table.add_row("fee:", f"{fee:10.9f} ツ")
     table.add_row(
@@ -448,5 +455,17 @@ def transaction_information(
             outputs = f"[bold]commitment:[/bold] {commitment}\n[bold]keychain path:[/bold] {keychain_path}\n[bold]status:[/bold] {status.lower()}"
         table.add_row("outputs:", outputs)
     console.print(table)
+
+    if slate:
+        import json
+        file_name = f"{details['slate_id'].replace('-','_')}.json";
+        file_path = (
+            Path().resolve().joinpath(file_name)
+        )
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(details["slate"], f, ensure_ascii=True, indent=4)
+        console.print(
+            f"*[italic]Slate exported to path: [yellow1]{file_path}[yellow1]\n",
+        )
 
     raise typer.Exit()
