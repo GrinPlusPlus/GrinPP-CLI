@@ -1,0 +1,5 @@
+#!/bin/bash
+
+pip install -r requirements.txt
+cd src
+.venv/bin/python -m nuitka --standalone --onefile --nofollow-import-to=*.tests --nofollow-import-to=*.distutils --nofollow-import-to=tornado.test --assume-yes-for-downloads --output-filename=GrinPP --output-dir="../build" --enable-console --remove-output --warn-unusual-code --include-package=asn1crypto,certifi,cffi,charset_normalizer,click,coincurve,colorama,commonmark,cryptography,idna,psutil,pycparser,pygments,pynostr,requests,rich,shellingham,timeago,tlv8,tornado,typer,urllib3 --include-module=apps,modules --noinclude-pytest-mode=nofollow --noinclude-unittest-mode=nofollow --noinclude-setuptools-mode=nofollow --noinclude-custom-mode=distutils:nofollow --product-name="Grin++ CLI" --product-version="0.2.0" --file-description="Fast, Private and Secure Grin Wallet" src/cli.py
