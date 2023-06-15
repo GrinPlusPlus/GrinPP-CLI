@@ -13,11 +13,13 @@ from modules.wallet import session
 from modules.api.owner.v3.wallet import (
     delete_wallet,
     get_mnemonic,
+    get_top_level_directory,
     list_wallets,
     open_wallet,
     close_wallet,
     create_wallet,
     restore_wallet,
+    retrieve_outputs,
     retrieve_summary_info,
     get_slatepack_address,
 )
@@ -194,7 +196,7 @@ def delete(
     raise typer.Exit()
 
 
-@app.command(name="backup")
+@app.command(name="seed")
 def backup(
     wallet: str = typer.Option(..., help="Name of the wallet you want to backup."),
     password: str = typer.Option(
@@ -202,7 +204,7 @@ def backup(
     ),
 ):
     """
-    Backup a Wallet.
+    Export the Seed the Wallet.
     """
 
     try:
@@ -354,4 +356,83 @@ def wallet_address(
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()
 
+    raise typer.Exit()
+
+
+@app.command(name="outputs")
+def list_outputs(
+    wallet: str = typer.Option(
+        ..., help="Name of the wallet you want to check", prompt="Wallet name"
+    ),
+    password: str = typer.Option(
+        ...,
+        prompt=True,
+        hide_input=True,
+        help="Wallet password.",
+    ),
+):
+    """
+    Get the balance of a running Wallet.
+    """
+
+    try:
+        token = session.token(wallet=wallet, password=password)
+
+        outputs = retrieve_outputs(token)
+
+        table = Table(
+            title="Wallet's Outputs",
+            box=box.HORIZONTALS,
+            show_footer=True,
+            show_header=True,
+            expand=True,
+        )
+        table = Table(title="", box=box.HORIZONTALS, expand=True)
+        table.add_column("amount ツ", justify="right", width=15)
+        table.add_column("commitment", justify="center")
+        table.add_column("status", justify="center", width=10)
+        table.add_column("tx_id", justify="center")
+        table.add_column("explorer", justify="center")
+
+        for output in outputs:
+            amount = output["amount"] / pow(10, 9)
+            link = f"[link=https://grinexplorer.net/output/{output['commitment']}]Open[/link]"
+            table.add_row(
+                f"{amount:10,.9f}",
+                f"{output['commitment']}",
+                f"{output['status']}",
+                f"{output['transaction_id']}",
+                link,
+            )
+        console.print(table)
+    except Exception as err:
+        error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
+        raise typer.Abort()
+
+    raise typer.Exit()
+
+
+@app.command(name="directory")
+def get_directory(
+    wallet: str = typer.Option(
+        ..., help="Name of the wallet you want query", prompt="Wallet name"
+    ),
+    password: str = typer.Option(
+        ..., help="Wallet password.", prompt="Password", hide_input=True
+    ),
+):
+    """
+    Get the information of a transaction using the Transaction Id.
+    """
+
+    try:
+        session_token = session.token(wallet=wallet, password=password)
+        folder = get_top_level_directory(session_token=session_token)
+    except Exception as err:
+        error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
+        raise typer.Abort()
+
+    console.print(
+        f"*[italic]Slate exported to path: [yellow1]{folder}[yellow1]\n",
+    )
     raise typer.Exit()

@@ -79,3 +79,17 @@ def slate_from_slatepack_message(session_token: str) -> dict:
 
 def get_tx_details(session_token: str, tx_id: int) -> dict:
     return call("get_tx_details", {"session_token": session_token, "tx_id": tx_id})
+
+
+def retrieve_outputs(session_token: str) -> dict:
+    return call("retrieve_outputs", {"session_token": session_token})
+
+
+def get_top_level_directory(session_token: str) -> dict:
+    return call("get_top_level_directory", {"session_token": session_token})
+
+
+def post_tx(session_token: str, tx_id: int) -> dict:
+    return call(
+        "post_tx", {"session_token": session_token, "tx_id": tx_id, "method": "FLUFF"}
+    )

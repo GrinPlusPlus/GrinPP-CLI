@@ -24,7 +24,13 @@ from modules.api.owner.rpc import (
     get_wallet_transactions,
     send_coins,
 )
-from modules.api.owner.v3.wallet import get_stored_tx, get_tx_details, retrieve_txs
+from modules.api.owner.v3.wallet import (
+    get_stored_tx,
+    get_top_level_directory,
+    get_tx_details,
+    post_tx,
+    retrieve_txs,
+)
 from modules.wallet import session
 
 app = typer.Typer()
@@ -128,7 +134,7 @@ def list_wallet_transactions(
 
         table.add_row(
             f"{transaction['id']}",
-            f"{transaction['slate_id']}",
+            f"{transaction.get('slate_id', '')}",
             f"{amount:10,.9f}",
             f"{fee:10,.9f}" if fee > 0 else "-",
             f"{relative_date}",
@@ -344,7 +350,7 @@ def transaction_receive(
 
 
 @app.command(name="post")
-def transaction_reposting(
+def post(
     wallet: str = typer.Option(
         ...,
         help="Name of the wallet from which you wish to post the transaction.",
@@ -364,8 +370,8 @@ def transaction_reposting(
     """
 
     try:
-        session_token = session.token(wallet=wallet, password=password)
-        if broadcast_transaction(session_token=session_token, id=id):
+        token = session.token(wallet=wallet, password=password)
+        if post_tx(session_token=token, tx_id=id):
             console.print("Transaction [bold]posted[/bold] successfully ✔")
         else:
             error_console.print("Unable to post the transaction ✗")
@@ -431,7 +437,7 @@ def details(
     table.add_column("", justify="right", style="bold")
     table.add_column("", justify="left")
     table.add_row("tx_id:", f"{details['id']}")
-    table.add_row("slate_id:", f"{details['slate_id']}")
+    table.add_row("slate_id:", f"{details.get('slate_id','')}")
     table.add_row("amount:", f"{amount:10,.9f} ツ")
     table.add_row("fee:", f"{fee:10.9f} ツ")
     table.add_row(
@@ -440,13 +446,13 @@ def details(
     table.add_row("type:", f"{details['type'].lower()}")
     if "confirmed_height" in details:
         table.add_row("[bold]confirmed height:", f"{details['confirmed_height']}")
-    if details["kernels"]:
+    if details["kernels"] and details["kernels"] is not None:
         kernels = ""
         for kernel in details["kernels"]:
             commitment = kernel["commitment"]
             kernels = f"{commitment}"
         table.add_row("kernels:", kernels)
-    if "outputs" in details:
+    if "outputs" in details and details["outputs"] is not None:
         outputs = ""
         for output in details["outputs"]:
             commitment = output["commitment"]
@@ -458,10 +464,9 @@ def details(
 
     if slate:
         import json
-        file_name = f"{details['slate_id'].replace('-','_')}.json";
-        file_path = (
-            Path().resolve().joinpath(file_name)
-        )
+
+        file_name = f"{details['slate_id'].replace('-','_')}.json"
+        file_path = Path().resolve().joinpath(file_name)
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(details["slate"], f, ensure_ascii=True, indent=4)
         console.print(
