@@ -3,7 +3,9 @@
 from datetime import datetime
 from typing import Optional
 from pathlib import Path
+import base64
 
+import json
 import psutil
 import timeago
 import typer
@@ -15,23 +17,24 @@ from rich.table import Table
 from apps.transaction.nostr import transport
 from modules.api import TransactionsFilterOptions
 from modules.api.owner.rpc import (
-    add_initial_signature,
     add_signature_to_transaction,
-    broadcast_transaction,
-    cancel_transaction,
-    estimate_transaction_fee,
-    get_transaction_details,
-    get_wallet_transactions,
-    send_coins,
 )
 from modules.api.owner.v3.wallet import (
+    cancel_tx,
+    decode_slatepack,
+    finalize_tx,
     get_stored_tx,
-    get_top_level_directory,
     get_tx_details,
     post_tx,
+    receive_tx,
     retrieve_txs,
+    estimate_fee,
+    send_tx,
 )
 from modules.wallet import session
+
+if not psutil.WINDOWS:
+    import readline
 
 app = typer.Typer()
 
@@ -46,7 +49,7 @@ error_console = Console(stderr=True, style="bright_red", width=155)
 
 
 @app.command(name="list")
-def list_wallet_transactions(
+def list_transactions(
     wallet: str = typer.Option(
         ...,
         help="Name of the wallet from which you want to list transactions.",
@@ -149,7 +152,7 @@ def list_wallet_transactions(
 
 
 @app.command(name="send")
-def send_grin(
+def send(
     wallet: str = typer.Option(
         ...,
         help="Name of the wallet from which you wish to send the coins.",
@@ -158,9 +161,7 @@ def send_grin(
     password: str = typer.Option(
         ..., help="Wallet password.", prompt="Password", hide_input=True
     ),
-    amount: float = typer.Option(
-        ..., help="Amount of ツ you want to send.", prompt="Amount of ツ"
-    ),
+    amount: Optional[float] = typer.Option(None, help="Amount of ツ you want to send."),
     address: Optional[str] = typer.Option(
         "", help="Slatepack Address where you want to send the ツ"
     ),
@@ -172,25 +173,28 @@ def send_grin(
     Send ツ to someone
     """
 
-    session_token: str
     fee: float
 
     try:
-        session_token = session.token(wallet=wallet, password=password)
-        fee = float(
-            estimate_transaction_fee(session_token=session_token, amount=amount)["fee"]
-        ) / pow(10, 9)
+        token = session.token(wallet=wallet, password=password)
+        if not amount:
+            estimate = estimate_fee(session_token=token)
+            fee = float(estimate["fee"]) / pow(10, 9)
+            amount_prt = float(estimate["amount"]) / pow(10, 9)
+        else:
+            estimate = estimate_fee(session_token=token, amount=amount)
+            fee = float(estimate["fee"]) / pow(10, 9)
+            amount_prt = float(estimate["amount"]) / pow(10, 9)
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()
-
     table: Table = Table(
         title="Transaction details", box=box.HORIZONTALS, expand=True, show_header=False
     )
     table.add_column("", justify="right", style="bold")
     table.add_column("", justify="left")
     table.add_row("wallet:", f"{wallet}")
-    table.add_row("amount:", f"{amount:10,.9f} ツ")
+    table.add_row("amount:", f"{amount_prt:10,.9f} ツ")
     table.add_row("fee:", f"{fee:10.9f} ツ")
     if address:
         table.add_row("receiver:", f"{address}")
@@ -202,7 +206,7 @@ def send_grin(
         proceed = True
     else:
         proceed = Confirm.ask(
-            "Are you sure you want to create this transaction?", default=False
+            "Are you sure you want to send this transaction?", default=False
         )
     if proceed:
         sent: bool = False
@@ -210,9 +214,14 @@ def send_grin(
         try:
             session_token = session.token(wallet=wallet, password=password)
             with console.status("Building transaction..."):
-                transaction = send_coins(
-                    session_token=session_token, amount=amount, address=address
-                )
+                if not amount:
+                    transaction = send_tx(session_token=session_token, address=address)
+                else:
+                    transaction = send_tx(
+                        session_token=session_token,
+                        amount=amount,
+                        address=address,
+                    )
             slatepack = transaction["slatepack"]
             if transaction["status"] == "FINALIZED":
                 sent = True
@@ -249,7 +258,7 @@ def transaction_cancelation(
     password: str = typer.Option(
         ..., help="Wallet password.", prompt="Password", hide_input=True
     ),
-    id: int = typer.Option(
+    tx_id: int = typer.Option(
         ...,
         help="Id of the transaction you want to be canceled.",
         prompt="Transaction Id",
@@ -260,9 +269,9 @@ def transaction_cancelation(
     """
 
     try:
-        session_token = session.token(wallet=wallet, password=password)
+        token = session.token(wallet=wallet, password=password)
 
-        if cancel_transaction(session_token=session_token, id=id):
+        if cancel_tx(session_token=token, tx_id=tx_id):
             console.print("Transaction [bold]canceled[/bold] successfully ✔")
         else:
             error_console.print("Unable to cancel the transaction ✗")
@@ -275,7 +284,7 @@ def transaction_cancelation(
 
 
 @app.command(name="finalize")
-def transaction_finalization(
+def finalize(
     wallet: str = typer.Option(
         ...,
         help="Name of the wallet from which you wish to finalize the transaction.",
@@ -291,10 +300,8 @@ def transaction_finalization(
 
     try:
         token = session.token(wallet=wallet, password=password)
-        if not psutil.WINDOWS:
-            import readline
         slatepack: str = console.input("Please, insert the Slatepack down below:\n")
-        if add_signature_to_transaction(session_token=token, slatepack=slatepack):
+        if finalize_tx(session_token=token, slatepack=slatepack):
             console.print("Transaction [bold]finalized[/bold] successfully ✔")
         else:
             error_console.print("Unable to finalized the transaction ✗")
@@ -306,7 +313,7 @@ def transaction_finalization(
 
 
 @app.command(name="receive")
-def transaction_receive(
+def receive(
     wallet: str = typer.Option(
         ...,
         help="Name of the wallet where you want to receive the coins.",
@@ -321,17 +328,16 @@ def transaction_receive(
     """
 
     try:
-        session_token = session.token(wallet=wallet, password=password)
+        token = session.token(wallet=wallet, password=password)
         if not psutil.WINDOWS:
             import readline
+
         slatepack = console.input("Paste the Slatepack down below:\n")
 
         if len(slatepack.strip().rstrip()) == 0:
             raise Exception("Empty Slatepack")
 
-        signed_slatepack = add_initial_signature(
-            session_token=session_token, slatepack=slatepack
-        )
+        signed_slatepack = receive_tx(session_token=token, slatepack=slatepack)
 
         console.print("\nPlease share the next Slatepack with the sender:")
         console.print(
@@ -463,8 +469,6 @@ def details(
     console.print(table)
 
     if slate:
-        import json
-
         file_name = f"{details['slate_id'].replace('-','_')}.json"
         file_path = Path().resolve().joinpath(file_name)
         with open(file_path, "w", encoding="utf-8") as f:
@@ -472,5 +476,45 @@ def details(
         console.print(
             f"*[italic]Slate exported to path: [yellow1]{file_path}[yellow1]\n",
         )
+
+    raise typer.Exit()
+
+
+@app.command(name="decode")
+def decode(
+    wallet: str = typer.Option(
+        ...,
+        help="Name of the wallet where you want to receive the coins.",
+        prompt="Wallet name",
+    ),
+    password: str = typer.Option(
+        ..., help="Wallet password.", prompt="Password", hide_input=True
+    ),
+):
+    """
+    decode a transaction using Slatepack Messsage
+    """
+
+    try:
+        token = session.token(wallet=wallet, password=password)
+
+        slatepack = console.input("Paste the Slatepack down below:\n")
+
+        if len(slatepack.strip().rstrip()) == 0:
+            raise Exception("Empty Slatepack")
+
+        decoded_slatepack = decode_slatepack(session_token=token, message=slatepack)
+
+        file_name = f"{decoded_slatepack['id'].replace('-','_')}.json"
+        file_path = Path().resolve().joinpath(file_name)
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(decoded_slatepack, f, ensure_ascii=True, indent=4)
+        console.print(
+            f"\n\n[bold]Slate exported to path: [italic yellow1]{file_path}[/italic yellow1]\n",
+        )
+
+    except Exception as err:
+        error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
+        raise typer.Abort()
 
     raise typer.Exit()

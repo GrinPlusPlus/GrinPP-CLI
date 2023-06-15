@@ -93,3 +93,55 @@ def post_tx(session_token: str, tx_id: int) -> dict:
     return call(
         "post_tx", {"session_token": session_token, "tx_id": tx_id, "method": "FLUFF"}
     )
+
+
+def estimate_fee(
+    session_token: str,
+    amount: float = -1,
+) -> dict:
+    params: dict = {
+        "session_token": session_token,
+        "fee_base": 500000,
+        "selection_strategy": {"strategy": "SMALLEST", "inputs": []},
+    }
+    if amount > 0:
+        params["amount"] = str(amount * pow(10, 9))
+
+    return call("estimate_fee", params)
+
+
+def send_tx(
+    session_token: str,
+    amount: float = -1,
+    address: str = "",
+) -> dict:
+    params: dict = {
+        "session_token": session_token,
+        "address": address,
+        "fee_base": 500000,
+        "change_outputs": 1,
+        "selection_strategy": {"strategy": "SMALLEST", "inputs": []},
+        "post_tx": {"method": "FLUFF"},
+    }
+    if amount > 0:
+        params["amount"] = str(amount * pow(10, 9))
+
+    return call("send", params)
+
+
+def cancel_tx(session_token: str, tx_id: int) -> dict:
+    return call("cancel_tx", {"session_token": session_token, "tx_id": tx_id})
+
+
+def receive_tx(session_token: str, slatepack: str) -> dict:
+    return call("receive_tx", {"session_token": session_token, "slatepack": slatepack})
+
+
+def decode_slatepack(session_token: str, message: str) -> dict:
+    return call(
+        "decode_slatepack_message", {"session_token": session_token, "message": message}
+    )
+
+
+def finalize_tx(session_token: str, slatepack: str) -> dict:
+    return call("finalize_tx", {"session_token": session_token, "slatepack": slatepack})

@@ -16,5 +16,5 @@ def call_owner_rpc_v3(method: str, params: dict = {}) -> dict:
     response = requests.post(url=url, json=params).json()
     if "error" in response:
         raise Exception(response["error"]["message"])
-    print(response["result"]["Ok"])
+    ##print(response["result"])
     return response["result"]["Ok"]
