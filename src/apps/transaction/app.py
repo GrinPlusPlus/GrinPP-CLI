@@ -397,7 +397,7 @@ def details(
     password: str = typer.Option(
         ..., help="Wallet password.", prompt="Password", hide_input=True
     ),
-    id: int = typer.Option(
+    tx_id: int = typer.Option(
         ...,
         help="Id of the transaction you want to read",
         prompt="Transaction Id",
@@ -413,7 +413,7 @@ def details(
 
     try:
         session_token = session.token(wallet=wallet, password=password)
-        details = get_tx_details(session_token=session_token, tx_id=id)
+        details = get_tx_details(session_token=session_token, tx_id=tx_id)
     except Exception as err:
         error_console.print(f"Error: {err} ¯\_(ツ)_/¯")
         raise typer.Abort()
