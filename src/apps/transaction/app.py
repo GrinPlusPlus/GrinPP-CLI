@@ -251,7 +251,7 @@ def send(
 
 
 @app.command(name="cancel")
-def transaction_cancelation(
+def cancel(
     wallet: str = typer.Option(
         ..., help="Name of the wallet from which you wish to cancel the transaction."
     ),
@@ -365,7 +365,7 @@ def post(
     password: str = typer.Option(
         ..., help="Wallet password.", prompt="Password", hide_input=True
     ),
-    id: int = typer.Option(
+    tx_id: int = typer.Option(
         ...,
         help="Id of the transaction you want to be repost",
         prompt="Transaction ID",
@@ -377,7 +377,7 @@ def post(
 
     try:
         token = session.token(wallet=wallet, password=password)
-        if post_tx(session_token=token, tx_id=id):
+        if post_tx(session_token=token, tx_id=tx_id):
             console.print("Transaction [bold]posted[/bold] successfully ✔")
         else:
             error_console.print("Unable to post the transaction ✗")

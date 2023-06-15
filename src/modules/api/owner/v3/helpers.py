@@ -1,5 +1,5 @@
 def filter_transactions(transactions: list[dict], status: str) -> list:
-    transactions.sort(key=lambda t: t["creation_date_time"], reverse=True)
+    transactions.sort(key=lambda t: t["creation_date_time"], reverse=False)
 
     if status == "coinbase":
         return list(
