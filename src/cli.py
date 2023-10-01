@@ -71,7 +71,7 @@ cli.add_typer(
     misc_app.app,
     name="misc",
     no_args_is_help=True,
-    help="Miscellaneous cool things! Give it a try (งツ)ว",
+    help="Miscellaneous cool things! Give it a try ʘ‿ʘ",
 )
 
 cli.add_typer(
