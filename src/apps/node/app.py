@@ -161,7 +161,7 @@ def get_node_tip():
     """
 
     try:
-        data = get_node_state()
+        data = node.get_status()
         table = Table(box=box.HORIZONTALS, expand=True)
         table.add_column("node height", justify="center")
         table.add_column("network height", justify="center")
@@ -169,10 +169,10 @@ def get_node_tip():
         table.add_column("current hash", justify="center")
 
         table.add_row(
-            str(data["header_height"]),
-            str(data["network"]["height"]),
-            str(data["chain"]["height"]),
-            data["chain"]["hash"],
+            str(data["sync_info"]["current_height"]),
+            str(data["sync_info"]["highest_height"]),
+            str(data["tip"]["height"]),
+            data["tip"]["last_block_pushed"],
         )
 
         console.print(table)
